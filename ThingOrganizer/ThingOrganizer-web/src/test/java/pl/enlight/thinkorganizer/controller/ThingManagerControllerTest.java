@@ -6,6 +6,8 @@ import static org.hamcrest.CoreMatchers.is;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import static org.mockito.AdditionalMatchers.not;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -20,10 +22,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import pl.enlight.thingorganizer.objects.dto.ThingDTO;
 import pl.enlight.thingorganizer.service.ThingManagerService;
+import pl.enlight.thingorganizer.service.exception.ServiceException;
 import pl.enlight.thinkorganizer.UnitTestUtils;
 /**
  * Thing Manager controller methods testes
@@ -49,7 +51,7 @@ public class ThingManagerControllerTest {
     }
 
     @Inject
-    private ThingManagerService manageService;
+    private ThingManagerService managerService;
     @Inject
     private ThingManagerController thingManagerController;
 
@@ -69,8 +71,8 @@ public class ThingManagerControllerTest {
         thingExpectedResult.setName("Result");
         ThingDTO thingArgument = new ThingDTO();
         thingArgument.setName(thingExpectedResult.getName());
-        when(manageService.create(thingArgument)).thenReturn(thingExpectedResult);
-        
+        when(managerService.create(thingArgument)).thenReturn(thingExpectedResult);
+        when(managerService.create(not(eq(thingArgument)))).thenThrow(ServiceException.class);
         ObjectMapper mapper = new ObjectMapper();
         String thingInJSON = mapper.writeValueAsString(thingArgument);
         ResultActions controllerResult = mockMvc.perform(post("/thing/manage/create")
@@ -78,10 +80,16 @@ public class ThingManagerControllerTest {
                                          .content(thingInJSON)
                                                         );
         controllerResult.andExpect(status().isOk())
-        .andDo(print())
         .andExpect(jsonPath("$.name", is(thingExpectedResult.getName())))
         .andExpect(jsonPath("$.id", is(thingExpectedResult.getId())));
-        verify(manageService, times(1)).create(thingArgument);
-        verifyNoMoreInteractions(manageService);
+        verify(managerService, times(1)).create(thingArgument);
+        verifyNoMoreInteractions(managerService);
+        
+        thingInJSON = mapper.writeValueAsString(thingExpectedResult);
+        controllerResult = mockMvc.perform(post("/thing/manage/create")
+                .contentType(UnitTestUtils.JSON_MEDIA_TYPE)
+                .content(thingInJSON));
+        
+        controllerResult.andExpect(status().isNotFound());
     }
 }
